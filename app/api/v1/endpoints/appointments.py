@@ -22,6 +22,70 @@ from app.core.constants import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, AppointmentStat
 router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 
+@router.post("", response_model=AppointmentResponse, status_code=201)
+async def create_appointment(
+    appointment_in: AppointmentCreate,
+    current_user = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Create new appointment"""
+    # Verify department exists
+    department = await crud_department.get(db, appointment_in.department_id)
+    if not department:
+        raise NotFoundException(detail="Department not found")
+    
+    # Verify doctor if provided
+    if appointment_in.doctor_id:
+        doctor = await crud_doctor.get(db, appointment_in.doctor_id)
+        if not doctor:
+            raise NotFoundException(detail="Doctor not found")
+        
+        # Check availability
+        is_available = await crud_appointment.check_availability(
+            db,
+            appointment_in.doctor_id,
+            appointment_in.appointment_date,
+            appointment_in.appointment_time
+        )
+        if not is_available:
+            raise ConflictException(detail="Doctor is not available at this time")
+    
+    # Create appointment with patient_id from current user
+    appointment = await crud_appointment.create(
+        db,
+        appointment_in,
+        patient_id=current_user.id
+    )
+    
+    return appointment
+
+
+@router.get("/patient/{patient_id}", response_model=list[AppointmentResponse])
+async def get_patient_appointments(
+    patient_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    current_user = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get appointments for a patient (admin only)"""
+    appointments = await crud_appointment.get_by_patient(db, patient_id, skip, limit)
+    return appointments
+
+
+@router.get("/doctor/{doctor_id}", response_model=list[AppointmentResponse])
+async def get_doctor_appointments(
+    doctor_id: int,
+    skip: int = Query(0, ge=0),
+    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
+    current_user = Depends(get_current_admin_user),
+    db: AsyncSession = Depends(get_db)
+):
+    """Get appointments for a doctor (admin only)"""
+    appointments = await crud_appointment.get_by_doctor(db, doctor_id, skip, limit)
+    return appointments
+
+
 @router.get("", response_model=AppointmentListResponse)
 async def list_appointments(
     skip: int = Query(0, ge=0),
@@ -89,46 +153,6 @@ async def get_appointment(
     }
 
 
-@router.post("", response_model=AppointmentResponse, status_code=201)
-async def create_appointment(
-    appointment_in: AppointmentCreate,
-    current_user = Depends(get_current_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Create new appointment"""
-    # Verify department exists
-    department = await crud_department.get(db, appointment_in.department_id)
-    if not department:
-        raise NotFoundException(detail="Department not found")
-    
-    # Verify doctor if provided
-    if appointment_in.doctor_id:
-        doctor = await crud_doctor.get(db, appointment_in.doctor_id)
-        if not doctor:
-            raise NotFoundException(detail="Doctor not found")
-        
-        # Check availability
-        is_available = await crud_appointment.check_availability(
-            db,
-            appointment_in.doctor_id,
-            appointment_in.appointment_date,
-            appointment_in.appointment_time
-        )
-        if not is_available:
-            raise ConflictException(detail="Doctor is not available at this time")
-    
-    # Create appointment
-    appointment_data = appointment_in.dict()
-    appointment_data["patient_id"] = current_user.id
-    
-    appointment = await crud_appointment.create(
-        db,
-        AppointmentCreate(**appointment_data)
-    )
-    
-    return appointment
-
-
 @router.put("/{appointment_id}", response_model=AppointmentResponse)
 async def update_appointment(
     appointment_id: int,
@@ -168,29 +192,3 @@ async def cancel_appointment(
     appointment.status = AppointmentStatus.CANCELLED
     db.add(appointment)
     await db.commit()
-
-
-@router.get("/patient/{patient_id}", response_model=list[AppointmentResponse])
-async def get_patient_appointments(
-    patient_id: int,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
-    current_user = Depends(get_current_admin_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get appointments for a patient (admin only)"""
-    appointments = await crud_appointment.get_by_patient(db, patient_id, skip, limit)
-    return appointments
-
-
-@router.get("/doctor/{doctor_id}", response_model=list[AppointmentResponse])
-async def get_doctor_appointments(
-    doctor_id: int,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE),
-    current_user = Depends(get_current_admin_user),
-    db: AsyncSession = Depends(get_db)
-):
-    """Get appointments for a doctor (admin only)"""
-    appointments = await crud_appointment.get_by_doctor(db, doctor_id, skip, limit)
-    return appointments

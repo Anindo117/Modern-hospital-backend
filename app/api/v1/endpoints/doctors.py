@@ -2,8 +2,11 @@
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+from sqlalchemy import select
 
 from app.db.session import get_db
+from app.db.models import Doctor
 from app.schemas.doctor import (
     DoctorCreate,
     DoctorUpdate,
@@ -52,7 +55,14 @@ async def get_doctor(
     db: AsyncSession = Depends(get_db)
 ):
     """Get doctor details"""
-    doctor = await crud_doctor.get(db, doctor_id)
+    # Eagerly load user and department relationships
+    result = await db.execute(
+        select(Doctor)
+        .where(Doctor.id == doctor_id)
+        .options(selectinload(Doctor.user), selectinload(Doctor.department))
+    )
+    doctor = result.scalars().first()
+    
     if not doctor:
         raise NotFoundException(detail="Doctor not found")
     
@@ -116,6 +126,9 @@ async def create_doctor(
     db.add(user)
     await db.commit()
     
+    # Refresh to load relationships
+    await db.refresh(doctor)
+    
     return doctor
 
 
@@ -138,6 +151,10 @@ async def update_doctor(
             raise NotFoundException(detail="Department not found")
     
     doctor = await crud_doctor.update(db, doctor, doctor_in)
+    
+    # Refresh to load relationships
+    await db.refresh(doctor)
+    
     return doctor
 
 

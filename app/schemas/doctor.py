@@ -5,6 +5,17 @@ from datetime import datetime
 from typing import Optional
 
 
+class UserBasic(BaseModel):
+    """Basic user info for doctor response"""
+    id: int
+    full_name: Optional[str] = None
+    phone: Optional[str] = None
+    email: Optional[str] = None
+    
+    class Config:
+        from_attributes = True
+
+
 class DoctorBase(BaseModel):
     """Base doctor schema"""
     specialty: str = Field(..., min_length=1, max_length=255, description="Medical specialty")
@@ -33,6 +44,7 @@ class DoctorResponse(DoctorBase):
     """Doctor response schema"""
     id: int
     user_id: int
+    user: UserBasic
     is_available: bool
     created_at: datetime
     updated_at: datetime

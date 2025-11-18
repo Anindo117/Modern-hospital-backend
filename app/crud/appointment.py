@@ -3,6 +3,7 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_
 from datetime import date
+from typing import Optional
 
 from app.db.models import Appointment
 from app.schemas.appointment import AppointmentCreate, AppointmentUpdate
@@ -11,6 +12,18 @@ from .base import CRUDBase
 
 class CRUDAppointment(CRUDBase[Appointment, AppointmentCreate, AppointmentUpdate]):
     """Appointment CRUD operations"""
+    
+    async def create(self, db: AsyncSession, obj_in: AppointmentCreate, patient_id: Optional[int] = None) -> Appointment:
+        """Create new appointment with optional patient_id override"""
+        obj_data = obj_in.dict()
+        if patient_id is not None:
+            obj_data["patient_id"] = patient_id
+        
+        db_obj = self.model(**obj_data)
+        db.add(db_obj)
+        await db.commit()
+        await db.refresh(db_obj)
+        return db_obj
     
     async def get_by_patient(self, db: AsyncSession, patient_id: int, skip: int = 0, limit: int = 100):
         """Get appointments by patient"""

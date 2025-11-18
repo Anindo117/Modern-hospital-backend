@@ -3,6 +3,7 @@
 from pydantic_settings import BaseSettings
 from typing import List, Optional
 import json
+import os
 
 
 class Settings(BaseSettings):
@@ -56,3 +57,14 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+# Post-initialization: Ensure CORS_ORIGINS is properly parsed
+if isinstance(settings.CORS_ORIGINS, str):
+    try:
+        settings.CORS_ORIGINS = json.loads(settings.CORS_ORIGINS)
+    except (json.JSONDecodeError, ValueError):
+        settings.CORS_ORIGINS = [origin.strip() for origin in settings.CORS_ORIGINS.split(',')]
+
+# Ensure it's a list
+if not isinstance(settings.CORS_ORIGINS, list):
+    settings.CORS_ORIGINS = list(settings.CORS_ORIGINS)
