@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
 from datetime import datetime
 import logging
 
@@ -70,6 +71,18 @@ def create_app() -> FastAPI:
         expose_headers=["*"],
         max_age=3600,
     )
+    
+    # Exception handler for validation errors
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(request: Request, exc: RequestValidationError):
+        logger.error(f"Validation error: {exc}")
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": "Validation error",
+                "timestamp": datetime.utcnow().isoformat(),
+            },
+        )
     
     # Exception handler for custom exceptions
     @app.exception_handler(APIException)

@@ -37,38 +37,56 @@ async def register(
     """
     Register a new user with phone number and password
     
+    Only required fields:
     - **phone**: Phone number (10-20 digits)
-    - **password**: Password (min 8 characters with uppercase, lowercase, digit, special char)
-    - **full_name**: Optional full name
-    - **email**: Optional email address
+    - **password**: Password (min 8 characters)
+    
+    Optional fields:
+    - **full_name**: Full name
+    - **email**: Email address
+    - All Bangladeshi profile fields are optional
     """
-    # Validate phone number
-    is_valid, message = SecurityUtils.validate_phone(user_in.phone)
-    if not is_valid:
-        raise ValidationException(detail=message)
-    
-    # Validate password strength
-    is_valid, message = SecurityUtils.validate_password(user_in.password)
-    if not is_valid:
-        raise ValidationException(detail=message)
-    
-    # Check if user already exists
-    existing_user = await crud_user.get_by_phone(db, user_in.phone)
-    if existing_user:
-        raise ConflictException(detail=ErrorMessages.USER_ALREADY_EXISTS)
-    
-    # Create user
-    user = await crud_user.create(db, user_in)
-    
-    # Create tokens
-    tokens = TokenUtils.create_tokens(user.id, user.phone)
-    
-    return TokenResponse(
-        access_token=tokens["access_token"],
-        refresh_token=tokens["refresh_token"],
-        token_type=tokens["token_type"],
-        user=UserResponse.from_orm(user),
-    )
+    try:
+        # Truncate password to 72 bytes for bcrypt compatibility
+        password_bytes = user_in.password.encode('utf-8')
+        original_len = len(password_bytes)
+        if len(password_bytes) > 72:
+            user_in.password = password_bytes[:72].decode('utf-8', errors='ignore')
+            import logging
+            logger = logging.getLogger(__name__)
+            logger.info(f"Password truncated from {original_len} bytes to {len(user_in.password.encode('utf-8'))} bytes")
+        
+        # Validate phone number
+        is_valid, message = SecurityUtils.validate_phone(user_in.phone)
+        if not is_valid:
+            raise ValidationException(detail=message)
+        
+        # Validate password strength
+        is_valid, message = SecurityUtils.validate_password(user_in.password)
+        if not is_valid:
+            raise ValidationException(detail=message)
+        
+        # Check if user already exists
+        existing_user = await crud_user.get_by_phone(db, user_in.phone)
+        if existing_user:
+            raise ConflictException(detail=ErrorMessages.USER_ALREADY_EXISTS)
+        
+        # Create user
+        user = await crud_user.create(db, user_in)
+        
+        # Create tokens
+        tokens = TokenUtils.create_tokens(user.id, user.phone)
+        
+        return TokenResponse(
+            access_token=tokens["access_token"],
+            refresh_token=tokens["refresh_token"],
+            token_type=tokens["token_type"],
+            user=UserResponse.from_orm(user),
+        )
+    except (ValidationException, ConflictException, AuthenticationException):
+        raise
+    except Exception as e:
+        raise ValidationException(detail=f"Registration failed: {str(e)}")
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -82,6 +100,11 @@ async def login(
     - **phone**: Phone number
     - **password**: Password
     """
+    # Truncate password to 72 bytes for bcrypt compatibility
+    password_bytes = credentials.password.encode('utf-8')
+    if len(password_bytes) > 72:
+        credentials.password = password_bytes[:72].decode('utf-8', errors='ignore')
+    
     # Authenticate user
     user = await crud_user.authenticate(db, credentials.phone, credentials.password)
     if not user:

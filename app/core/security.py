@@ -3,15 +3,12 @@
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
 from fastapi import HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 import re
 
 from app.config import settings
-
-# Password hashing context
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # OAuth2 scheme
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token", auto_error=False)
@@ -22,25 +19,28 @@ class SecurityUtils:
     
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
-        """Verify a plain password against a hashed password"""
-        return pwd_context.verify(plain_password, hashed_password)
+        """Verify a plain password against a hashed password - bcrypt has a 72 byte limit"""
+        password_bytes = plain_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            plain_password = password_bytes[:72].decode('utf-8', errors='ignore')
+        try:
+            return bcrypt.checkpw(plain_password.encode('utf-8'), hashed_password.encode('utf-8'))
+        except Exception:
+            return False
     
     @staticmethod
     def get_password_hash(password: str) -> str:
-        """Hash a password"""
-        return pwd_context.hash(password)
+        """Hash a password - bcrypt has a 72 byte limit"""
+        password_bytes = password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password = password_bytes[:72].decode('utf-8', errors='ignore')
+        salt = bcrypt.gensalt(rounds=12)
+        hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+        return hashed.decode('utf-8')
     
     @staticmethod
     def validate_password(password: str) -> tuple[bool, str]:
-        """
-        Validate password strength
-        Requirements:
-        - At least 8 characters
-        - At least one uppercase letter
-        - At least one lowercase letter
-        - At least one digit
-        - At least one special character
-        """
+        """Validate password strength - bcrypt will automatically truncate to 72 bytes"""
         if len(password) < 8:
             return False, "Password must be at least 8 characters long"
         
@@ -53,25 +53,16 @@ class SecurityUtils:
         if not re.search(r"\d", password):
             return False, "Password must contain at least one digit"
         
-        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", password):
-            return False, "Password must contain at least one special character"
-        
         return True, "Password is valid"
     
     @staticmethod
     def validate_phone(phone: str) -> tuple[bool, str]:
-        """
-        Validate phone number format
-        Accepts formats like: 1234567890, +11234567890, (123) 456-7890, 123-456-7890
-        """
-        # Remove common formatting characters
+        """Validate phone number format"""
         cleaned_phone = re.sub(r"[\s\-\(\)\.]+", "", phone)
         
-        # Check if it's a valid phone number (digits only, with optional + prefix)
         if not re.match(r"^\+?\d{10,15}$", cleaned_phone):
             return False, f"Invalid phone number format. Must be {settings.PHONE_MIN_LENGTH}-{settings.PHONE_MAX_LENGTH} digits"
         
-        # Check length
         digits_only = re.sub(r"\D", "", cleaned_phone)
         if len(digits_only) < settings.PHONE_MIN_LENGTH or len(digits_only) > settings.PHONE_MAX_LENGTH:
             return False, f"Phone number must be {settings.PHONE_MIN_LENGTH}-{settings.PHONE_MAX_LENGTH} digits"
@@ -81,12 +72,9 @@ class SecurityUtils:
     @staticmethod
     def normalize_phone(phone: str) -> str:
         """Normalize phone number to standard format"""
-        # Remove all non-digit characters except +
         cleaned = re.sub(r"[^\d\+]", "", phone)
         
-        # If it doesn't start with +, add country code
         if not cleaned.startswith("+"):
-            # Remove leading 1 if present (for US numbers)
             if cleaned.startswith("1") and len(cleaned) == 11:
                 cleaned = cleaned[1:]
             cleaned = settings.PHONE_COUNTRY_CODE + cleaned
@@ -147,5 +135,3 @@ class TokenUtils:
             "refresh_token": refresh_token,
             "token_type": "bearer"
         }
-
-

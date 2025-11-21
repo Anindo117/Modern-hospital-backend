@@ -19,6 +19,20 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     full_name = Column(String(255), nullable=True)
     email = Column(String(255), unique=True, index=True, nullable=True)
+    
+    # Bangladeshi patient information (all optional)
+    nid = Column(String(20), nullable=True, index=True)
+    date_of_birth = Column(Date, nullable=True)
+    gender = Column(String(20), nullable=True)
+    blood_group = Column(String(10), nullable=True)
+    division = Column(String(100), nullable=True)
+    district = Column(String(100), nullable=True)
+    upazila = Column(String(100), nullable=True)
+    village = Column(String(255), nullable=True)
+    address = Column(Text, nullable=True)
+    emergency_contact_name = Column(String(255), nullable=True)
+    emergency_contact_phone = Column(String(20), nullable=True)
+    
     is_active = Column(Boolean, default=True, index=True)
     is_admin = Column(Boolean, default=False)
     is_doctor = Column(Boolean, default=False)
@@ -133,6 +147,51 @@ class Service(Base):
     is_active = Column(Boolean, default=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class AmbulanceService(Base):
+    """Ambulance Service model"""
+    __tablename__ = "ambulance_services"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, unique=True, index=True)
+    description = Column(Text, nullable=True)
+    phone = Column(String(20), nullable=False, index=True)
+    location = Column(String(500), nullable=True)
+    latitude = Column(String(50), nullable=True)
+    longitude = Column(String(50), nullable=True)
+    available_24_7 = Column(Boolean, default=True)
+    ambulance_count = Column(Integer, default=1)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        Index('idx_ambulance_services_active', 'is_active'),
+    )
+
+
+class EyeProduct(Base):
+    """Eye Products model (Sunglasses and Eye-related products)"""
+    __tablename__ = "eye_products"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(255), nullable=False, index=True)
+    description = Column(Text, nullable=True)
+    category = Column(String(100), nullable=False, index=True)  # e.g., "Sunglasses", "Contact Lenses", "Eye Drops", "Frames"
+    brand = Column(String(255), nullable=True)
+    price = Column(String(50), nullable=True)
+    image_url = Column(String(500), nullable=True)
+    stock_quantity = Column(Integer, default=0)
+    is_available = Column(Boolean, default=True, index=True)
+    is_active = Column(Boolean, default=True, index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    
+    __table_args__ = (
+        Index('idx_eye_products_category_active', 'category', 'is_active'),
+        Index('idx_eye_products_brand', 'brand'),
+    )
 
 
 class AuditLog(Base):

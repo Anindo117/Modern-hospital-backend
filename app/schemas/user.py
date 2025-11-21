@@ -1,7 +1,7 @@
 """User schemas"""
 
 from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional
 
 
@@ -12,9 +12,40 @@ class UserBase(BaseModel):
     email: Optional[str] = Field(None, description="Email address")
 
 
-class UserCreate(UserBase):
+class PatientProfileCreate(BaseModel):
+    """Patient profile schema with Bangladeshi fields (all optional)"""
+    nid: Optional[str] = Field(None, max_length=20, description="National ID")
+    date_of_birth: Optional[date] = Field(None, description="Date of birth")
+    gender: Optional[str] = Field(None, max_length=20, description="Gender (Male/Female/Other)")
+    blood_group: Optional[str] = Field(None, max_length=10, description="Blood group (A+, A-, B+, B-, O+, O-, AB+, AB-)")
+    division: Optional[str] = Field(None, max_length=100, description="Division (Dhaka, Chittagong, etc.)")
+    district: Optional[str] = Field(None, max_length=100, description="District")
+    upazila: Optional[str] = Field(None, max_length=100, description="Upazila")
+    village: Optional[str] = Field(None, max_length=255, description="Village/Area")
+    address: Optional[str] = Field(None, description="Full address")
+    emergency_contact_name: Optional[str] = Field(None, max_length=255, description="Emergency contact name")
+    emergency_contact_phone: Optional[str] = Field(None, max_length=20, description="Emergency contact phone")
+    
+    @field_validator('nid', 'gender', 'blood_group', 'division', 'district', 'upazila', 'village', 'address', 'emergency_contact_name', 'emergency_contact_phone', mode='before')
+    @classmethod
+    def empty_string_to_none(cls, v):
+        """Convert empty strings to None"""
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
+    
+    @field_validator('date_of_birth', mode='before')
+    @classmethod
+    def validate_date_of_birth(cls, v):
+        """Convert empty strings to None for date fields"""
+        if isinstance(v, str) and v.strip() == '':
+            return None
+        return v
+
+
+class UserCreate(UserBase, PatientProfileCreate):
     """User creation schema"""
-    password: str = Field(..., min_length=8, max_length=255, description="Password")
+    password: str = Field(..., min_length=8, description="Password")
     
     @field_validator('phone')
     @classmethod
@@ -29,9 +60,20 @@ class UserLogin(BaseModel):
     """User login schema"""
     phone: str = Field(..., description="Phone number")
     password: str = Field(..., description="Password")
+    
+    @field_validator('password', mode='before')
+    @classmethod
+    def truncate_password(cls, v):
+        """Truncate password to 72 bytes for bcrypt compatibility"""
+        if isinstance(v, str):
+            password_bytes = v.encode('utf-8')
+            if len(password_bytes) > 72:
+                # Truncate to 72 bytes
+                v = password_bytes[:72].decode('utf-8', errors='ignore')
+        return v
 
 
-class UserResponse(UserBase):
+class UserResponse(UserBase, PatientProfileCreate):
     """User response schema"""
     id: int
     is_active: bool

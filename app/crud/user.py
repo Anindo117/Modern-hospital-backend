@@ -38,6 +38,17 @@ class CRUDUser(CRUDBase[User, UserCreate, UserUpdate]):
             hashed_password=hashed_password,
             full_name=obj_in.full_name,
             email=obj_in.email,
+            nid=obj_in.nid,
+            date_of_birth=obj_in.date_of_birth,
+            gender=obj_in.gender,
+            blood_group=obj_in.blood_group,
+            division=obj_in.division,
+            district=obj_in.district,
+            upazila=obj_in.upazila,
+            village=obj_in.village,
+            address=obj_in.address,
+            emergency_contact_name=obj_in.emergency_contact_name,
+            emergency_contact_phone=obj_in.emergency_contact_phone,
         )
         db.add(db_obj)
         await db.commit()
